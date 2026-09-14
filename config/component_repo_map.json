@@ -118,6 +118,7 @@
     "odh-latency-predictor-training-ci": "opendatahub/odh-latency-predictor-training"
   },
   "llm-d-router": {
+    "odh-llm-d-coordinator-ci": "opendatahub/odh-llm-d-coordinator",
     "odh-llm-d-router-disagg-sidecar-ci": "opendatahub/odh-llm-d-router-disagg-sidecar",
     "odh-llm-d-router-endpoint-picker-ci": "opendatahub/odh-llm-d-router-endpoint-picker"
   },
