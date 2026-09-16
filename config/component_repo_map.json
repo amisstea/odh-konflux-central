@@ -113,7 +113,6 @@
     "odh-batch-gateway-operator-ci": "opendatahub/odh-batch-gateway-operator"
   },
   "llm-d-latency-predictor": {
-    "odh-latency-predictor-test-ci": "opendatahub/odh-latency-predictor-test",
     "odh-latency-predictor-training-ci": "opendatahub/odh-latency-predictor-training"
   },
   "llm-d-router": {
