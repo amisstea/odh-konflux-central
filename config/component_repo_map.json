@@ -224,6 +224,9 @@
     "odh-autorag-inference-ci": "opendatahub/odh-autorag-inference",
     "odh-pipelines-components-ci": "opendatahub/odh-pipelines-components"
   },
+  "praxis-ai-grid-operator": {
+    "odh-praxis-ai-grid-operator-ci": "opendatahub/odh-praxis-ai-grid-operator"
+  },
   "praxis-extproc": {
     "odh-praxis-extproc-ci": "opendatahub/odh-praxis-extproc"
   },
