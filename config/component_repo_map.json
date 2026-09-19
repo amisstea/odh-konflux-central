@@ -224,7 +224,8 @@
     "odh-pipelines-components-ci": "opendatahub/odh-pipelines-components"
   },
   "praxis-ai-grid-operator": {
-    "odh-praxis-ai-grid-operator-ci": "opendatahub/odh-praxis-ai-grid-operator"
+    "odh-praxis-ai-grid-operator-ci": "opendatahub/odh-praxis-ai-grid-operator",
+    "odh-praxis-grid-enrollment-ci": "opendatahub/odh-praxis-grid-enrollment"
   },
   "praxis-extproc": {
     "odh-praxis-extproc-ci": "opendatahub/odh-praxis-extproc"
