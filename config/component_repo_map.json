@@ -225,7 +225,8 @@
   },
   "praxis-ai-grid-operator": {
     "odh-praxis-ai-grid-operator-ci": "opendatahub/odh-praxis-ai-grid-operator",
-    "odh-praxis-grid-enrollment-ci": "opendatahub/odh-praxis-grid-enrollment"
+    "odh-praxis-grid-enrollment-ci": "opendatahub/odh-praxis-grid-enrollment",
+    "odh-praxis-grid-gateway-ci": "opendatahub/odh-praxis-grid-gateway"
   },
   "praxis-extproc": {
     "odh-praxis-extproc-ci": "opendatahub/odh-praxis-extproc"
