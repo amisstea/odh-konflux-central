@@ -149,7 +149,8 @@
   },
   "models-as-a-service": {
     "odh-maas-api-ci": "opendatahub/maas-api",
-    "odh-maas-controller-ci": "opendatahub/maas-controller"
+    "odh-maas-controller-ci": "opendatahub/maas-controller",
+    "odh-maas-discovery-ci": "opendatahub/odh-maas-discovery"
   },
   "notebooks": {
     "odh-pipeline-runtime-datascience-cpu-py312-ubi9-ci": "opendatahub/odh-pipeline-runtime-datascience-cpu-py312-ubi9",
