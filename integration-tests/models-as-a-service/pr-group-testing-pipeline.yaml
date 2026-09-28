@@ -24,7 +24,13 @@ spec:
       description: >
         Tag for the official RHOAI must-gather image
         registry.redhat.io/rhoai/odh-must-gather-rhel9:<tag>.
-        Override from the models-as-a-service maas-group-test PipelineRun when needed.
+        Ignored when rhoai-must-gather-image is set.
+    - name: rhoai-must-gather-image
+      type: string
+      default: ''
+      description: >
+        Optional full must-gather image override (e.g. quay pre-release).
+        When empty, uses registry.redhat.io/rhoai/odh-must-gather-rhel9:<tag>.
   tasks:
     - name: generate-snapshot
       description: Generate a composite snapshot containing images for all group components
@@ -194,12 +200,18 @@ spec:
       params:
         - name: rhoai-must-gather-tag
           value: $(params.rhoai-must-gather-tag)
+        - name: rhoai-must-gather-image
+          value: $(params.rhoai-must-gather-image)
       taskSpec:
         params:
           - name: rhoai-must-gather-tag
             type: string
             default: 'v3.5.0'
             description: Tag for registry.redhat.io/rhoai/odh-must-gather-rhel9
+          - name: rhoai-must-gather-image
+            type: string
+            default: ''
+            description: Optional full must-gather image override
         volumes:
           - name: credentials
             emptyDir: {}
@@ -302,13 +314,19 @@ spec:
                 value: /workspace/artifacts-dir
               - name: RHOAI_MUST_GATHER_TAG
                 value: $(params.rhoai-must-gather-tag)
+              - name: RHOAI_MUST_GATHER_IMAGE_OVERRIDE
+                value: $(params.rhoai-must-gather-image)
             workingDir: /workspace/source
             volumeMounts:
               - name: credentials
                 mountPath: /credentials
             script: |
               set -euxo pipefail
-              RHOAI_MUST_GATHER_IMAGE="registry.redhat.io/rhoai/odh-must-gather-rhel9:${RHOAI_MUST_GATHER_TAG}"
+              if [ -n "${RHOAI_MUST_GATHER_IMAGE_OVERRIDE}" ]; then
+                RHOAI_MUST_GATHER_IMAGE="${RHOAI_MUST_GATHER_IMAGE_OVERRIDE}"
+              else
+                RHOAI_MUST_GATHER_IMAGE="registry.redhat.io/rhoai/odh-must-gather-rhel9:${RHOAI_MUST_GATHER_TAG}"
+              fi
               echo "RHOAI_MUST_GATHER_IMAGE=${RHOAI_MUST_GATHER_IMAGE}"
 
               # Group-test installs ODH (opendatahub-operator in openshift-operators), not
