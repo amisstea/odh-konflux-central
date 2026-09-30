@@ -215,6 +215,9 @@
     "odh-openshell-sandbox-ci": "opendatahub/odh-openshell-sandbox",
     "odh-openshell-supervisor-ci": "opendatahub/odh-openshell-supervisor"
   },
+  "openshell-dashboard": {
+    "odh-openshell-dashboard-ci": "opendatahub/odh-openshell-dashboard"
+  },
   "openvino_model_server": {
     "openvino-model-server-ci": "opendatahub/openvino_model_server"
   },
