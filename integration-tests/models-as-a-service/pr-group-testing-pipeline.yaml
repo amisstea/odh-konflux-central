@@ -31,6 +31,13 @@ spec:
       description: >
         Optional full must-gather image override (e.g. quay pre-release).
         When empty, uses registry.redhat.io/rhoai/odh-must-gather-rhel9:<tag>.
+    - name: gather-on-success
+      type: string
+      default: 'false'
+      description: >
+        Run must-gather even when e2e tests pass. Set to "true" when you
+        need cluster logs from a successful run for validation. When "false"
+        (default), must-gather is skipped on success to save ~20-25 min.
   tasks:
     - name: generate-snapshot
       description: Generate a composite snapshot containing images for all group components
@@ -202,6 +209,8 @@ spec:
           value: $(params.rhoai-must-gather-tag)
         - name: rhoai-must-gather-image
           value: $(params.rhoai-must-gather-image)
+        - name: gather-on-success
+          value: $(params.gather-on-success)
       taskSpec:
         params:
           - name: rhoai-must-gather-tag
@@ -212,6 +221,10 @@ spec:
             type: string
             default: ''
             description: Optional full must-gather image override
+          - name: gather-on-success
+            type: string
+            default: 'false'
+            description: Run must-gather even when e2e tests pass
         volumes:
           - name: credentials
             emptyDir: {}
@@ -290,16 +303,25 @@ spec:
               if [ -z "${MAAS_API_TAG}" ] || [ "${MAAS_API_TAG}" = "null" ] || \
                  [ -z "${MAAS_CONTROLLER_TAG}" ] || [ "${MAAS_CONTROLLER_TAG}" = "null" ] || \
                  [ -z "${MAAS_DISCOVERY_TAG}" ] || [ "${MAAS_DISCOVERY_TAG}" = "null" ]; then
-                echo "ERROR: image_tag missing for odh-maas-api-ci, odh-maas-controller-ci, or odh-maas-discovery-ci in SNAPSHOT" >&2
+                set +x
+                echo "❌ ERROR: image_tag missing for odh-maas-api-ci, odh-maas-controller-ci, or odh-maas-discovery-ci in SNAPSHOT" >&2
                 exit 1
               fi
 
-              echo "MAAS_API_IMAGE=${MAAS_API_IMAGE}"
-              echo "MAAS_API_IMAGE (tag): ${MAAS_API_IMAGE%%@*}:${MAAS_API_TAG}"
-              echo "MAAS_CONTROLLER_IMAGE=${MAAS_CONTROLLER_IMAGE}"
-              echo "MAAS_CONTROLLER_IMAGE (tag): ${MAAS_CONTROLLER_IMAGE%%@*}:${MAAS_CONTROLLER_TAG}"
-              echo "MAAS_DISCOVERY_IMAGE=${MAAS_DISCOVERY_IMAGE}"
-              echo "MAAS_DISCOVERY_IMAGE (tag): ${MAAS_DISCOVERY_IMAGE%%@*}:${MAAS_DISCOVERY_TAG}"
+              set +x
+              echo ""
+              echo "=========================================="
+              echo "  ✅ Snapshot images resolved"
+              echo "=========================================="
+              echo "  API:        ${MAAS_API_IMAGE%%@*}:${MAAS_API_TAG}"
+              echo "              digest: ${MAAS_API_IMAGE#*@}"
+              echo "  Controller: ${MAAS_CONTROLLER_IMAGE%%@*}:${MAAS_CONTROLLER_TAG}"
+              echo "              digest: ${MAAS_CONTROLLER_IMAGE#*@}"
+              echo "  Discovery:  ${MAAS_DISCOVERY_IMAGE%%@*}:${MAAS_DISCOVERY_TAG}"
+              echo "              digest: ${MAAS_DISCOVERY_IMAGE#*@}"
+              echo "=========================================="
+              echo ""
+              set -x
 
               ./test/e2e/scripts/prow_run_smoke_test.sh
 
@@ -316,18 +338,34 @@ spec:
                 value: $(params.rhoai-must-gather-tag)
               - name: RHOAI_MUST_GATHER_IMAGE_OVERRIDE
                 value: $(params.rhoai-must-gather-image)
+              - name: GATHER_ON_SUCCESS
+                value: $(params.gather-on-success)
             workingDir: /workspace/source
             volumeMounts:
               - name: credentials
                 mountPath: /credentials
+              - name: test-status
+                mountPath: /test-status
             script: |
-              set -euxo pipefail
+              set -uxo pipefail
+
+              # --- Conditional skip: only gather on failure or when explicitly requested ---
+              STATUS_FILE="/test-status/deploy-and-e2e-status"
+              E2E_STATUS=$(cat "${STATUS_FILE}" 2>/dev/null || echo "failed")
+              echo "ℹ️ e2e test status: ${E2E_STATUS}"
+              echo "ℹ️ gather-on-success: ${GATHER_ON_SUCCESS}"
+
+              if [ "${E2E_STATUS}" = "success" ] && [ "${GATHER_ON_SUCCESS}" != "true" ]; then
+                echo "✅ E2E passed and gather-on-success is not enabled — skipping must-gather"
+                exit 0
+              fi
+
               if [ -n "${RHOAI_MUST_GATHER_IMAGE_OVERRIDE}" ]; then
                 RHOAI_MUST_GATHER_IMAGE="${RHOAI_MUST_GATHER_IMAGE_OVERRIDE}"
               else
                 RHOAI_MUST_GATHER_IMAGE="registry.redhat.io/rhoai/odh-must-gather-rhel9:${RHOAI_MUST_GATHER_TAG}"
               fi
-              echo "RHOAI_MUST_GATHER_IMAGE=${RHOAI_MUST_GATHER_IMAGE}"
+              echo "ℹ️ RHOAI_MUST_GATHER_IMAGE=${RHOAI_MUST_GATHER_IMAGE}"
 
               # Group-test installs ODH (opendatahub-operator in openshift-operators), not
               # rhods-operator. Without OPERATOR_NAMESPACE, must-gather's gather script
@@ -336,29 +374,53 @@ spec:
               # Setting these env vars skips that probe (must-gather image unchanged).
               MG_ODH_ENV="export OPERATOR_NAMESPACE=openshift-operators; export APPLICATIONS_NAMESPACE=opendatahub; export MONITORING_NAMESPACE=opendatahub; export NOTEBOOK_NAMESPACE=opendatahub"
 
-              # Isolate each gather: set -e would otherwise abort after the first failure
-              # and skip later gathers (seen when aigateway failed and gather-openshift
-              # never ran). Prefer openshift base first so the main archive always exists.
-              DEST_DIR="${ARTIFACT_DIR}/gather-openshift"
-              mkdir -p "${DEST_DIR}"
-              oc adm must-gather --dest-dir "${DEST_DIR}" \
-                || echo "WARNING: openshift must-gather failed (continuing)"
+              # --- Run all three gathers in parallel ---
+              # Each gather writes to its own destination directory and runs as a
+              # background job so all three execute simultaneously, reducing wall-clock
+              # time from ~25 min (sequential) to ~10 min (longest single gather).
+              GATHER_PIDS=()
+              GATHER_NAMES=()
 
-              # aigateway-must-gather (includes MaaS CRs on OCP: aitenants, configs,
+              mkdir -p "${ARTIFACT_DIR}/gather-openshift"
+              (
+                oc adm must-gather --dest-dir "${ARTIFACT_DIR}/gather-openshift"
+              ) &
+              GATHER_PIDS+=($!)
+              GATHER_NAMES+=("openshift")
+
+              # aigateway-must-gather (MaaS CRs: aitenants, configs,
               # maasauthpolicies, maasmodelrefs, maassubscriptions, maastenantconfigs,
               # tenants, kuadrant TRLPs/RLPs, inference ExternalModel/Provider, etc.)
-              DEST_DIR="${ARTIFACT_DIR}/gather-aigateway"
-              mkdir -p "${DEST_DIR}"
-              oc adm must-gather --image="${RHOAI_MUST_GATHER_IMAGE}" --dest-dir "${DEST_DIR}" -- \
-                "${MG_ODH_ENV}; export COMPONENT=aigateway; /usr/bin/gather" \
-                || echo "WARNING: aigateway must-gather failed (continuing)"
+              mkdir -p "${ARTIFACT_DIR}/gather-aigateway"
+              (
+                oc adm must-gather --image="${RHOAI_MUST_GATHER_IMAGE}" \
+                  --dest-dir "${ARTIFACT_DIR}/gather-aigateway" -- \
+                  "${MG_ODH_ENV}; export COMPONENT=aigateway; /usr/bin/gather"
+              ) &
+              GATHER_PIDS+=($!)
+              GATHER_NAMES+=("aigateway")
 
               # kserve-must-gather (LLMInferenceService / llmisvc and related serving CRs)
-              DEST_DIR="${ARTIFACT_DIR}/gather-kserve"
-              mkdir -p "${DEST_DIR}"
-              oc adm must-gather --image="${RHOAI_MUST_GATHER_IMAGE}" --dest-dir "${DEST_DIR}" -- \
-                "${MG_ODH_ENV}; export COMPONENT=kserve; /usr/bin/gather" \
-                || echo "WARNING: kserve must-gather failed (continuing)"
+              mkdir -p "${ARTIFACT_DIR}/gather-kserve"
+              (
+                oc adm must-gather --image="${RHOAI_MUST_GATHER_IMAGE}" \
+                  --dest-dir "${ARTIFACT_DIR}/gather-kserve" -- \
+                  "${MG_ODH_ENV}; export COMPONENT=kserve; /usr/bin/gather"
+              ) &
+              GATHER_PIDS+=($!)
+              GATHER_NAMES+=("kserve")
+
+              # Wait for all gathers and report results
+              FAILED=0
+              for i in "${!GATHER_PIDS[@]}"; do
+                if ! wait "${GATHER_PIDS[$i]}"; then
+                  echo "❌ ${GATHER_NAMES[$i]} must-gather failed (continuing)"
+                  FAILED=$((FAILED + 1))
+                else
+                  echo "✅ ${GATHER_NAMES[$i]} must-gather completed successfully"
+                fi
+              done
+              echo "ℹ️ Must-gather complete: $((${#GATHER_PIDS[@]} - FAILED))/${#GATHER_PIDS[@]} succeeded"
           - name: git-push-artifacts
             onError: continue
             ref:
@@ -391,10 +453,10 @@ spec:
             script: |
               STATUS_FILE="/test-status/deploy-and-e2e-status"
               if ! [ -f "$STATUS_FILE" ] || [ "$(cat "$STATUS_FILE")" != "success" ]; then
-                echo "Failing pipeline because deploy-and-e2e step failed"
+                echo "❌ Failing pipeline because deploy-and-e2e step failed"
                 exit 1
               fi
-              echo "deploy-and-e2e step succeeded"
+              echo "✅ deploy-and-e2e step succeeded"
 
   finally:
   - name: push-ci-artifacts-and-update-pr
