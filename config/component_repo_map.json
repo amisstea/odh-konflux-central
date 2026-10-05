@@ -214,6 +214,7 @@
     "odh-openshell-e2e-ci": "opendatahub/odh-openshell-e2e",
     "odh-openshell-gateway-ci": "opendatahub/odh-openshell-gateway",
     "odh-openshell-sandbox-ci": "opendatahub/odh-openshell-sandbox",
+    "odh-openshell-sandbox-openclaw-ci": "opendatahub/odh-openshell-sandbox-openclaw",
     "odh-openshell-supervisor-ci": "opendatahub/odh-openshell-supervisor"
   },
   "openshell-dashboard": {
