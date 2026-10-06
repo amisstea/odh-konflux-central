@@ -8,14 +8,15 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "$$TARGET_BRANCH$$"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      event == "push"
+      && target_branch.matches("^refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+-rhaiv\\.[0-9]+$")
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: opendatahub-builds
     appstudio.openshift.io/component: odh-openshell-sandbox-openclaw-ci
     pipelines.appstudio.openshift.io/type: build
-  name: odh-openshell-sandbox-openclaw-on-push
+  name: odh-openshell-sandbox-openclaw-on-tag
   namespace: open-data-hub-tenant
 spec:
   params:
@@ -24,7 +25,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/opendatahub/odh-openshell-sandbox-openclaw:$$OUTPUT_IMAGE_TAG$$
+    value: quay.io/opendatahub/odh-openshell-sandbox-openclaw:{{git_tag}}
   - name: dockerfile
     value: deploy/docker/Dockerfile.konflux.openclaw
   - name: path-context
