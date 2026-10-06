@@ -57,6 +57,7 @@
     "odh-eval-hub-lighteval-ci": "opendatahub/odh-eval-hub-lighteval"
   },
   "feast": {
+    "odh-feast-mcp-ci": "opendatahub/odh-feast-mcp",
     "odh-feast-operator-ci": "opendatahub/feast-operator",
     "odh-feature-server-ci": "opendatahub/feature-server"
   },
