@@ -28,6 +28,9 @@ spec:
     value: Dockerfile.konflux.spyre
   - name: path-context
     value: jupyter/pytorch-spyre/ubi9-python-3.12
+  - name: build-platforms
+    value:
+    - linux/ppc64le
   #add these additional params
   - name: additional-tags
     value:
