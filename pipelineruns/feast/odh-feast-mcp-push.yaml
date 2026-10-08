@@ -29,6 +29,10 @@ spec:
     value: sdk/python/feast/mcp/docker/Dockerfile
   - name: path-context
     value: .
+  - name: build-args
+    value:
+    - BASE_IMAGE=quay.io/opendatahub/feature-server
+    - BASE_TAG=odh-stable
   pipelineRef:
     resolver: git
     params:
